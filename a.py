@@ -1,89 +1,47 @@
-import streamlit as st
-import google.generativeai as genai
-from textblob import TextBlob
-import pandas as pd
+import speech_recognition
+from gtts import gTTS
+from openai import OpenAI
+import pygame
 
-# Thay thế bằng API key của Google Gemini
-#api
+client = OpenAI(
+    #api
+)
 
-# Hàm gọi API Gemini để tạo phản hồi
-def generate_response(prompt):
+robot_ear = speech_recognition.Recognizer()
+robot_brain = ""
+pygame.mixer.init()
+
+while True:
+    with speech_recognition.Microphone() as mic:
+        print("Robot: Tôi đang nghe ...")
+        audio = robot_ear.listen(mic)
+        print("Robot: ...")
+
     try:
-        model = genai.GenerativeModel("gemini-pro")
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"Lỗi khi gọi API Gemini: {str(e)}"
+        you = robot_ear.recognize_google(audio, language="vi-VN")
+    except:
+        you = ""
 
-# Hàm phân tích cảm xúc
-def analyze_sentiment(text):
-    analysis = TextBlob(text)
-    polarity = analysis.sentiment.polarity
-    if polarity > 0.5:
-        return "Very Positive", polarity
-    elif 0.1 < polarity <= 0.5:
-        return "Positive", polarity
-    elif -0.1 <= polarity <= 0.1:
-        return "Neutral", polarity
-    elif -0.5 < polarity < -0.1:
-        return "Negative", polarity
-    else:
-        return "Very Negative", polarity
+    print("You: " + you)
 
-# Hàm đưa ra chiến lược đối phó
-def provide_coping_strategy(sentiment):
-    strategies = {
-        "Very Positive": "Hãy tiếp tục giữ vững tinh thần tích cực!",
-        "Positive": "Hãy làm những điều khiến bạn vui vẻ và hạnh phúc.",
-        "Neutral": "Bạn có thể thử một số hoạt động thư giãn như nghe nhạc hoặc đi dạo.",
-        "Negative": "Hãy dành thời gian nghỉ ngơi và chăm sóc bản thân.",
-        "Very Negative": "Hãy tìm kiếm sự giúp đỡ từ bạn bè hoặc chuyên gia tâm lý nếu cần."
-    }
-    return strategies.get(sentiment, "Luôn giữ vững tinh thần, bạn không cô đơn!")
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4.1-nano",
+            messages=[
+                {"role": "system", "content": "Bạn trả lời ngắn gọn xúc tích."},
+                {"role": "user", "content": you}
+            ],
+            temperature=0.7,
+            max_tokens=100
+        )
+        robot_brain = completion.choices[0].message.content
+    except:
+        robot_brain = "Tôi đang bận, vui lòng để lại lời nhắn"
 
-# Hiển thị ứng dụng Streamlit
-st.title("Mental Health Support Chatbot")
-
-if 'messages' not in st.session_state:
-    st.session_state['messages'] = []
-if 'mood_tracker' not in st.session_state:
-    st.session_state['mood_tracker'] = []
-
-with st.form(key='chat_form'):
-    user_message = st.text_input("Bạn: ")
-    submit_button = st.form_submit_button(label='Gửi')
-
-if submit_button and user_message:
-    st.session_state['messages'].append(("Bạn", user_message))
-
-    sentiment, polarity = analyze_sentiment(user_message)
-    coping_strategy = provide_coping_strategy(sentiment)
-
-    response = generate_response(user_message)
-
-    st.session_state['messages'].append(("Bot", response))
-    st.session_state['mood_tracker'].append((user_message, sentiment, polarity))
-
-for sender, message in st.session_state['messages']:
-    st.text(f"{sender}: {message}")
-
-# Hiển thị biểu đồ theo dõi tâm trạng
-if st.session_state['mood_tracker']:
-    mood_data = pd.DataFrame(st.session_state['mood_tracker'], columns=["Message", "Sentiment", "Polarity"])
-    st.line_chart(mood_data['Polarity'])
-
-# Hiển thị chiến lược đối phó
-if user_message:
-    st.write(f"Chiến lược đối phó gợi ý: {coping_strategy}")
-
-st.sidebar.title("Nguồn trợ giúp")
-st.sidebar.write("Nếu bạn cần hỗ trợ khẩn cấp, vui lòng liên hệ:")
-st.sidebar.write("1. Tổng đài hỗ trợ tâm lý Việt Nam: 1900 6233")
-st.sidebar.write("2. Đường dây nóng hỗ trợ sức khỏe tâm thần: 024 7307 8999")
-st.sidebar.write("[Thêm thông tin tại đây](https://www.mentalhealth.gov/get-help/immediate-help)")
-
-# Hiển thị tóm tắt phiên làm việc
-if st.sidebar.button("Xem tổng kết phiên"):
-    st.sidebar.write("### Tổng kết phiên")
-    for i, (message, sentiment, polarity) in enumerate(st.session_state['mood_tracker']):
-        st.sidebar.write(f"{i + 1}. {message} - Cảm xúc: {sentiment} (Độ phân cực: {polarity})")
+    print("Robot: " + robot_brain)
+    tts = gTTS(text=robot_brain, lang="vi")
+    tts.save("voice.mp3")
+    pygame.mixer.music.load("voice.mp3")
+    pygame.mixer.music.play()
+    while pygame.mixer.music.get_busy():
+        continue
